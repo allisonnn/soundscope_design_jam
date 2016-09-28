@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>SOUNDSCOPE</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+        <style>
+            body {
+                background:#000;
+                color: #eee;
+                padding:0;
+                margin:0;
+                font-weight:bold;
+                overflow:hidden;
+
+                font-family:Monospace;
+                font-size:13px;
+                text-align:center;
+            }
+
+            #info {
+                position: absolute;
+                top: 0px; width: 100%;
+                padding: 5px;
+                z-index:100;
+            }
+
+            a {
+
+                color: #0080ff;
+            }
+
+            b { color:orange }
+        </style>
+
+        <script src="bower_components/three.js/build/three.js"></script>
+
+        <!-- <script src="bower_components/three.js/examples/js/controls/FlyControls.js"></script>
+ -->
+        <script src="bower_components/three.js/examples/js/controls/FirstPersonControls.js"></script>
+        <script src="bower_components/three.js/examples/js/shaders/CopyShader.js"></script>
+        <script src="bower_components/three.js/examples/js/shaders/FilmShader.js"></script>
+
+        <script src="bower_components/three.js/examples/js/postprocessing/EffectComposer.js"></script>
+        <script src="bower_components/three.js/examples/js/postprocessing/ShaderPass.js"></script>
+        <script src="bower_components/three.js/examples/js/postprocessing/MaskPass.js"></script>
+        <script src="bower_components/three.js/examples/js/postprocessing/RenderPass.js"></script>
+        <script src="bower_components/three.js/examples/js/postprocessing/FilmPass.js"></script>
+
+        <script src="bower_components/three.js/examples/js/Detector.js"></script>
+        <script src="bower_components/three.js/examples/js/libs/stats.min.js"></script>
+    
+        <script scr="init.js"></script>
+
+    </head>
+
+    <body>
+
+        <div id="info">Sounds of Space</div>
+
+        <script>
+
+            if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+
+            var radius = 6371;
+            var tilt = 0.41;
+            var rotationSpeed = 0.02;
+
+            var cloudsScale = 1.005;
+            var moonScale = 0.23;
+            var mercuryScale = 0.8;
+
+            var MARGIN = 0;
+            var SCREEN_HEIGHT = window.innerHeight - MARGIN * 2;
+            var SCREEN_WIDTH  = window.innerWidth;
+
+            var container, stats;
+            var camera, controls, scene, renderer;
+            var geometry, meshPlanet, meshClouds, meshMoon, meshVenus, meshMars, meshMercury;
+            var dirLight, pointLight, ambientLight;
+
+            var textureLoader = new THREE.TextureLoader();
+
+            var d, dPlanet, dMoon, dMoonVec = new THREE.Vector3();
+
+            var clock = new THREE.Clock();
+
+            init();
+            animate();
+
+            function init() {
+
+                container = document.createElement( 'div' );
+                document.body.appendChild( container );
+
+                camera = new THREE.PerspectiveCamera( 45, SCREEN_WIDTH / SCREEN_HEIGHT, 1, 1e7 );
+                // camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 1, 10000 );
+                camera.position.z = radius * 5;
+                // camera.position.set( 0, 0, 5000 );
+                var listener = new THREE.AudioListener();
+                camera.add(listener);
+
+                scene = new THREE.Scene();
+                scene.fog = new THREE.FogExp2( 0x000000, 0.00000025 );
+
+                //暂时换成FPS
+                // controls = new THREE.FlyControls( camera );
+
+                // controls.movementSpeed = 80;//1000
+                // controls.domElement = container;
+                // controls.rollSpeed = Math.PI / 48; //24
+                // controls.autoForward = false;
+                // controls.dragToLook = false;
+                
+
+                dirLight = new THREE.DirectionalLight( 0xffffff );
+                dirLight.position.set( -1, 0, 1 ).normalize();
+                scene.add( dirLight );
+
+                var earthMap = new THREE.MeshPhongMaterial( {
+
+                    specular: 0x333333,
+                    shininess: 15,
+                    map: textureLoader.load( "assets/textures/earth_atmos_2048.jpg" ),
+                    specularMap: textureLoader.load( "assets/textures/earth_specular_2048.jpg" ),
+                    normalMap: textureLoader.load( "assets/textures/earth_normal_2048.jpg" ),
+                    normalScale: new THREE.Vector2( 0.85, 0.85 )
+
+                } );
+
+                // planet
+
+                geometry = new THREE.SphereGeometry( radius, 100, 50 );
+
+                meshPlanet = new THREE.Mesh( geometry, earthMap );
+                meshPlanet.rotation.y = 0;
+                meshPlanet.rotation.z = tilt;
+                scene.add( meshPlanet );
+
+                // sounds
+
+                var audioLoader = new THREE.AudioLoader();
+                var earth_sound = new THREE.PositionalAudio( listener );
+                audioLoader.load( 'assets/sounds/earth.wav', function( buffer ) {
+                    earth_sound.setBuffer( buffer );
+                    earth_sound.setRefDistance( 20 );
+                    venus_sound.setVolume(100);
+                    earth_sound.play();
+                });
+                meshPlanet.add( earth_sound );
+                
+
+                // clouds
+
+                var earthClouds = new THREE.MeshLambertMaterial( {
+
+                    map: textureLoader.load( "assets/textures/earth_clouds_1024.png" ),
+                    transparent: true
+
+                } );
+
+                meshClouds = new THREE.Mesh( geometry, earthClouds );
+                meshClouds.scale.set( cloudsScale, cloudsScale, cloudsScale );
+                meshClouds.rotation.z = tilt;
+                scene.add( meshClouds );
+
+                // moon
+
+                var materialMoon = new THREE.MeshPhongMaterial( {
+
+                    map: textureLoader.load( "assets/textures/moon_1024.jpg" )
+
+                } );
+
+                meshMoon = new THREE.Mesh( geometry, materialMoon );
+                meshMoon.position.set( radius * 5, 0, 0 );
+                meshMoon.scale.set( moonScale, moonScale, moonScale );
+                scene.add( meshMoon );
+
+                //Mercury
+
+                var materialMercury = new THREE.MeshPhongMaterial({
+                    map: textureLoader.load("assets/textures/mercury_map.jpg"),
+                    normalMap: textureLoader.load( "assets/textures/mercury_normal.jpg" ),
+                    bumpMap: textureLoader.load( "assets/textures/mercury_bump.jpg" )
+
+                });
+                meshMercury = new THREE.Mesh(geometry, materialMercury);
+                meshMercury.position.set(radius * -5, 0, 0);
+                meshMercury.scale.set( mercuryScale, mercuryScale, mercuryScale );
+                scene.add( meshMercury );
+
+                //Venus
+
+                var materialVenus = new THREE.MeshPhongMaterial({
+                    map: textureLoader.load("assets/textures/venus_map.jpg"),
+                    normalMap: textureLoader.load( "assets/textures/venus_normal.jpg" ),
+                    bumpMap: textureLoader.load( "assets/textures/venus_bump.jpg" )
+
+                });
+                meshVenus = new THREE.Mesh(geometry, materialVenus);
+                meshVenus.position.set(radius * -2, 0, 0);
+                meshVenus.scale.set( 0.3, 0.3, 0.3 );
+                scene.add( meshVenus );
+
+                //Mars
+
+                var materialMars = new THREE.MeshPhongMaterial({
+                    map: textureLoader.load("assets/textures/mars_map.jpg"),
+                    normalMap: textureLoader.load( "assets/textures/mars_normal.jpg" ),
+                    bumpMap: textureLoader.load( "assets/textures/mars_bump.jpg" )
+
+                });
+                meshMars = new THREE.Mesh(geometry, materialMars);
+                meshMars.position.set(radius * 8, 500, 0);
+                meshMars.scale.set( 0.7, 0.7, 0.7);
+                scene.add( meshMars );
+
+                // var venusClouds = new THREE.MeshLambertMaterial( {
+
+                //     map: textureLoader.load( "assets/textures/venus_clouds.jpg" ),
+                //     transparent: true
+
+                // } );
+
+                // venusClouds = new THREE.Mesh( geometry, venusClouds );
+                // venusClouds.position.set(radius * -2, 0, 0);
+                // venusClouds.scale.set( 0.3, 0.3, 0.3 );
+                // venusClouds.rotation.z = tilt;
+                // scene.add( venusClouds );
+
+                var venus_sound = new THREE.PositionalAudio(listener);
+                audioLoader.load('assets/sounds/jupiter.wav', function(buffer) {
+                    venus_sound.setBuffer(buffer);
+                    venus_sound.setRefDistance(20);
+                    venus_sound.setVolume(100);
+                    venus_sound.play();
+
+                });
+                meshVenus.add( venus_sound );
+
+                // stars
+
+                var i, r = radius, starsGeometry = [ new THREE.Geometry(), new THREE.Geometry() ];
+
+                for ( i = 0; i < 250; i ++ ) {
+
+                    var vertex = new THREE.Vector3();
+                    vertex.x = Math.random() * 2 - 1;
+                    vertex.y = Math.random() * 2 - 1;
+                    vertex.z = Math.random() * 2 - 1;
+                    vertex.multiplyScalar( r );
+
+                    starsGeometry[ 0 ].vertices.push( vertex );
+
+                }
+
+                for ( i = 0; i < 1500; i ++ ) {
+
+                    var vertex = new THREE.Vector3();
+                    vertex.x = Math.random() * 2 - 1;
+                    vertex.y = Math.random() * 2 - 1;
+                    vertex.z = Math.random() * 2 - 1;
+                    vertex.multiplyScalar( r );
+
+                    starsGeometry[ 1 ].vertices.push( vertex );
+
+                }
+
+                var stars;
+                var starsMaterials = [
+                    new THREE.PointsMaterial( { color: 0x555555, size: 2, sizeAttenuation: false } ),
+                    new THREE.PointsMaterial( { color: 0x555555, size: 1, sizeAttenuation: false } ),
+                    new THREE.PointsMaterial( { color: 0x333333, size: 2, sizeAttenuation: false } ),
+                    new THREE.PointsMaterial( { color: 0x3a3a3a, size: 1, sizeAttenuation: false } ),
+                    new THREE.PointsMaterial( { color: 0x1a1a1a, size: 2, sizeAttenuation: false } ),
+                    new THREE.PointsMaterial( { color: 0x1a1a1a, size: 1, sizeAttenuation: false } )
+                ];
+
+                for ( i = 10; i < 30; i ++ ) {
+
+                    stars = new THREE.Points( starsGeometry[ i % 2 ], starsMaterials[ i % 6 ] );
+
+                    stars.rotation.x = Math.random() * 6;
+                    stars.rotation.y = Math.random() * 6;
+                    stars.rotation.z = Math.random() * 6;
+
+                    s = i * 10;
+                    stars.scale.set( s, s, s );
+
+                    stars.matrixAutoUpdate = false;
+                    stars.updateMatrix();
+
+                    scene.add( stars );
+
+                }
+
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setPixelRatio( window.devicePixelRatio );
+                renderer.setSize( SCREEN_WIDTH, SCREEN_HEIGHT );
+                renderer.sortObjects = false;
+
+                container.appendChild( renderer.domElement );
+
+                stats = new Stats();
+                container.appendChild( stats.dom );
+
+                window.addEventListener( 'resize', onWindowResize, false );
+
+                controls = new THREE.FirstPersonControls( camera, renderer.domElement );
+
+                controls.movementSpeed = 4500;
+                controls.lookSpeed = 0.05;
+                controls.noFly = true;
+                controls.lookVertical = true;
+
+                // postprocessing
+
+                var renderModel = new THREE.RenderPass( scene, camera );
+                var effectFilm = new THREE.FilmPass( 0.35, 0.75, 2048, false );
+
+                effectFilm.renderToScreen = true;
+
+                composer = new THREE.EffectComposer( renderer );
+
+                composer.addPass( renderModel );
+                composer.addPass( effectFilm );
+
+            }
+
+            function onWindowResize( event ) {
+
+                SCREEN_HEIGHT = window.innerHeight;
+                SCREEN_WIDTH  = window.innerWidth;
+
+                renderer.setSize( SCREEN_WIDTH, SCREEN_HEIGHT );
+
+                camera.aspect = SCREEN_WIDTH / SCREEN_HEIGHT;
+                camera.updateProjectionMatrix();
+
+                composer.reset();
+                //sound
+                controls.handleResize();
+
+            }
+
+            function animate() {
+
+                requestAnimationFrame( animate );
+
+                render();
+                stats.update();
+
+            }
+
+            function render() {
+
+                // rotate the planet and clouds
+
+                var delta = clock.getDelta();
+
+                meshPlanet.rotation.y += rotationSpeed * delta;
+                meshMars.rotation.y += rotationSpeed * delta;
+                meshVenus.rotation.y += rotationSpeed * delta;
+                meshClouds.rotation.y += 1.25 * rotationSpeed * delta;
+
+                // slow down as we approach the surface
+
+                dPlanet = camera.position.length();
+
+                dMoonVec.subVectors( camera.position, meshMoon.position );
+                dMoon = dMoonVec.length();
+
+                if ( dMoon < dPlanet ) {
+
+                    d = ( dMoon - radius * moonScale * 1.01 );
+
+                } else {
+
+                    d = ( dPlanet - radius * 1.01 );
+
+                }
+
+                //暂时换成FPS
+                // controls.movementSpeed = 0.2 * d; //0.33
+                controls.update( delta );
+
+                composer.render( delta );
+
+                renderer.render( scene, camera );
+
+            }
+
+        </script>
+    </body>
+</html>
